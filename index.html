@@ -2,80 +2,149 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compta Restaurant</title>
+    <title>Restaurant RP - Dashboard Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-900 text-white p-8">
+<body class="bg-slate-900 text-gray-100 font-sans">
 
-    <div class="max-w-2xl mx-auto">
-        <h1 class="text-3xl font-bold mb-6 border-b border-yellow-500 pb-2">📊 Gestion Comptable - Restaurant</h1>
+    <nav class="bg-slate-800 p-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-bold text-yellow-500">🍔 Le Coq Hardi - Compta</h1>
+        <div>
+            <button onclick="switchTab('sales')" class="px-4 py-2 hover:bg-slate-700 rounded">Ventes</button>
+            <button onclick="checkAdmin()" class="px-4 py-2 bg-yellow-600 rounded ml-2">Espace Patron</button>
+        </div>
+    </nav>
+
+    <div class="max-w-5xl mx-auto p-6">
         
-        <div class="bg-gray-800 p-6 rounded-lg mb-6 shadow-xl">
-            <p class="text-gray-400 uppercase text-sm tracking-widest">Trésorerie Actuelle</p>
-            <h2 id="balance" class="text-5xl font-mono text-green-400">$ 0</h2>
-        </div>
-
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
-            <h3 class="mb-4 text-lg font-semibold">Ajouter une opération</h3>
-            <div class="grid grid-cols-1 gap-4">
-                <input type="text" id="label" placeholder="Libellé (ex: Commande viande)" class="p-2 rounded bg-gray-700 border-none outline-none focus:ring-2 focus:ring-yellow-500">
-                <input type="number" id="amount" placeholder="Montant (ex: 500 ou -200)" class="p-2 rounded bg-gray-700 border-none">
-                <button onclick="addTransaction()" class="bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 rounded transition">Enregistrer</button>
+        <section id="section-sales" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Enregistrer une Vente</h2>
+                <div id="menu-items" class="grid grid-cols-2 gap-3">
+                    </div>
+                <div class="mt-6 border-t border-slate-700 pt-4">
+                    <input type="text" id="emp-name" placeholder="Votre Nom (pour la prime)" class="w-full p-2 bg-slate-700 rounded mb-2">
+                </div>
             </div>
-        </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-            <h3 class="mb-4 text-lg font-semibold">Historique récent</h3>
-            <ul id="history" class="space-y-2">
-                </ul>
-        </div>
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Dernières Ventes</h2>
+                <div id="recent-sales" class="text-sm space-y-2 max-h-64 overflow-y-auto"></div>
+            </div>
+        </section>
+
+        <section id="section-admin" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div class="bg-green-900/40 p-4 rounded-lg border border-green-500">
+                    <p class="text-xs uppercase">Trésorerie Totale</p>
+                    <span id="total-ca" class="text-2xl font-bold">0 $</span>
+                </div>
+                <div class="bg-blue-900/40 p-4 rounded-lg border border-blue-500">
+                    <p class="text-xs uppercase">Primes à payer</p>
+                    <span id="total-primes" class="text-2xl font-bold">0 $</span>
+                </div>
+                <div class="bg-red-900/40 p-4 rounded-lg border border-red-500">
+                    <p class="text-xs uppercase">Stock critique</p>
+                    <span id="stock-alert" class="text-2xl font-bold">0</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-lg font-bold mb-4">📦 Gestion des Stocks & Prix</h3>
+                <div id="admin-inventory-list" class="space-y-2"></div>
+                <button onclick="addNewItem()" class="mt-4 text-sm text-yellow-500 underline">+ Ajouter un article au menu</button>
+            </div>
+        </section>
+
     </div>
 
     <script>
-        // Configuration Supabase (Remplacez par vos clés !)
-        const SUPABASE_URL = 'https://oswuzaujjjxvyxvprdlv.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_lNPf5hGMmgNUYbjJUm_eWQ__-bGICli';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // CONFIG SUPABASE
+        const _URL = "https://oswuzaujjjxvyxvprdlv.supabase.co/";
+        const _KEY = "sb_publishable_lNPf5hGMmgNUYbjJUm_eWQ__-bGICli";
+        const supabase = supabase.createClient(_URL, _KEY);
 
-        async function fetchTransactions() {
-            const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
-            if (data) {
-                render(data);
-            }
+        let configPrime = 0.10; // Par défaut 10%
+
+        // INITIALISATION
+        async function init() {
+            loadMenu();
+            loadSales();
+            loadPrimes();
         }
 
-        async function addTransaction() {
-            const label = document.getElementById('label').value;
-            const amount = parseFloat(document.getElementById('amount').value);
-
-            if (label && amount) {
-                await supabase.from('transactions').insert([{ label, amount }]);
-                document.getElementById('label').value = '';
-                document.getElementById('amount').value = '';
-                fetchTransactions();
-            }
-        }
-
-        function render(data) {
-            const history = document.getElementById('history');
-            const balanceEl = document.getElementById('balance');
-            let total = 0;
-            history.innerHTML = '';
+        // CHARGER LE MENU DEPUIS SUPABASE
+        async function loadMenu() {
+            const { data } = await supabase.from('items').select('*');
+            const container = document.getElementById('menu-items');
+            const adminContainer = document.getElementById('admin-inventory-list');
+            
+            container.innerHTML = '';
+            adminContainer.innerHTML = '';
 
             data.forEach(item => {
-                total += item.amount;
-                const li = document.createElement('li');
-                li.className = `flex justify-between p-2 rounded ${item.amount > 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`;
-                li.innerHTML = `<span>${item.label}</span> <span class="font-mono">${item.amount > 0 ? '+' : ''}${item.amount} $</span>`;
-                history.appendChild(li);
+                // Bouton pour employé
+                container.innerHTML += `
+                    <button onclick="makeSale('${item.name}', ${item.price})" class="bg-slate-700 hover:bg-yellow-600 p-3 rounded text-left transition">
+                        ${item.name} <br> <span class="text-xs text-yellow-400">${item.price}$</span>
+                    </button>`;
+                
+                // Ligne pour patron
+                adminContainer.innerHTML += `
+                    <div class="flex items-center justify-between bg-slate-700 p-2 rounded">
+                        <span>${item.name}</span>
+                        <div class="space-x-2">
+                            <input type="number" onchange="updateItem('${item.id}', 'price', this.value)" value="${item.price}" class="w-16 bg-slate-600 rounded px-1 text-sm" title="Prix"> $
+                            <input type="number" onchange="updateItem('${item.id}', 'stock', this.value)" value="${item.stock}" class="w-16 bg-slate-600 rounded px-1 text-sm" title="Stock"> Unités
+                        </div>
+                    </div>`;
             });
-
-            balanceEl.innerText = `$ ${total.toLocaleString()}`;
         }
 
-        fetchTransactions();
+        // ENREGISTRER UNE VENTE
+        async function makeSale(name, price) {
+            const seller = document.getElementById('emp-name').value || "Anonyme";
+            const primeAmount = price * configPrime;
+
+            const { error } = await supabase.from('transactions').insert([
+                { label: name, amount: price, seller: seller, prime: primeAmount }
+            ]);
+
+            // Baisser le stock de 1
+            // (Logique simplifiée : il faudrait une fonction RPC Supabase pour faire stock = stock - 1)
+            
+            if (!error) {
+                alert(`Vendu : ${name} (${price}$)`);
+                loadSales();
+            }
+        }
+
+        // GESTION DES ONGLETS
+        function switchTab(tab) {
+            document.getElementById('section-sales').classList.toggle('hidden', tab !== 'sales');
+            document.getElementById('section-admin').classList.toggle('hidden', tab !== 'admin');
+        }
+
+        function checkAdmin() {
+            const code = prompt("Code PIN Patron :");
+            if (code === "1234") { // À changer pour plus de sécurité
+                switchTab('admin');
+                loadAdminData();
+            } else {
+                alert("Accès refusé");
+            }
+        }
+
+        // Mise à jour en temps réel des stocks/prix par le patron
+        async function updateItem(id, field, value) {
+            const updateData = {};
+            updateData[field] = value;
+            await supabase.from('items').update(updateData).eq('id', id);
+            loadMenu();
+        }
+
+        init();
     </script>
 </body>
 </html>
