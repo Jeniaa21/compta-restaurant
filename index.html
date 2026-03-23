@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compta Restaurant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 border-b border-yellow-500 pb-2">📊 Gestion Comptable - Restaurant</h1>
+        
+        <div class="bg-gray-800 p-6 rounded-lg mb-6 shadow-xl">
+            <p class="text-gray-400 uppercase text-sm tracking-widest">Trésorerie Actuelle</p>
+            <h2 id="balance" class="text-5xl font-mono text-green-400">$ 0</h2>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <h3 class="mb-4 text-lg font-semibold">Ajouter une opération</h3>
+            <div class="grid grid-cols-1 gap-4">
+                <input type="text" id="label" placeholder="Libellé (ex: Commande viande)" class="p-2 rounded bg-gray-700 border-none outline-none focus:ring-2 focus:ring-yellow-500">
+                <input type="number" id="amount" placeholder="Montant (ex: 500 ou -200)" class="p-2 rounded bg-gray-700 border-none">
+                <button onclick="addTransaction()" class="bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 rounded transition">Enregistrer</button>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h3 class="mb-4 text-lg font-semibold">Historique récent</h3>
+            <ul id="history" class="space-y-2">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        // Configuration Supabase (Remplacez par vos clés !)
+        const SUPABASE_URL = 'https://oswuzaujjjxvyxvprdlv.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zd3V6YXVqamp4dnl4dnByZGx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTE4MjcsImV4cCI6MjA4OTg2NzgyN30.eY0Mg9-V3ZrK9rYRYqjFojv92LYzWKm4VHnls_MsKQI';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function fetchTransactions() {
+            const { data, error } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
+            if (data) {
+                render(data);
+            }
+        }
+
+        async function addTransaction() {
+            const label = document.getElementById('label').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+
+            if (label && amount) {
+                await supabase.from('transactions').insert([{ label, amount }]);
+                document.getElementById('label').value = '';
+                document.getElementById('amount').value = '';
+                fetchTransactions();
+            }
+        }
+
+        function render(data) {
+            const history = document.getElementById('history');
+            const balanceEl = document.getElementById('balance');
+            let total = 0;
+            history.innerHTML = '';
+
+            data.forEach(item => {
+                total += item.amount;
+                const li = document.createElement('li');
+                li.className = `flex justify-between p-2 rounded ${item.amount > 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`;
+                li.innerHTML = `<span>${item.label}</span> <span class="font-mono">${item.amount > 0 ? '+' : ''}${item.amount} $</span>`;
+                history.appendChild(li);
+            });
+
+            balanceEl.innerText = `$ ${total.toLocaleString()}`;
+        }
+
+        fetchTransactions();
+    </script>
+</body>
+</html>
